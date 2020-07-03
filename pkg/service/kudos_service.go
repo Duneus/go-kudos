@@ -35,27 +35,44 @@ func (s *KudosService) Handler(w http.ResponseWriter, r *http.Request) {
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(r.Body)
 	body := buf.String()
-	eventsAPIEvent, e := slackevents.ParseEvent(json.RawMessage(body), slackevents.OptionVerifyToken(&slackevents.TokenComparator{VerificationToken: s.cfg.VerificationToken}))
+	eventsAPIEvent, e := s.parseMessage(body)
 	if e != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	if eventsAPIEvent.Type == slackevents.URLVerification {
-		var r *slackevents.ChallengeResponse
-		err := json.Unmarshal([]byte(body), &r)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-		}
-		w.Header().Set("Content-Type", "text")
-		w.Write([]byte(r.Challenge))
+	s.handleEvent(eventsAPIEvent, body, w)
+}
+
+func (s *KudosService) SendMessage(channelId string, message string) error {
+	_, _, err := s.client.PostMessage(channelId, slack.MsgOptionText(message, false))
+
+	return err
+}
+
+
+func (s *KudosService) ForwardKudos() {
+	panic("implement me")
+}
+
+func (s *KudosService) PublishKudos() {
+	panic("implement me")
+}
+
+func (s *KudosService) parseMessage(body string) (event slackevents.EventsAPIEvent, err error) {
+	return slackevents.ParseEvent(json.RawMessage(body), slackevents.OptionVerifyToken(&slackevents.TokenComparator{VerificationToken: s.cfg.VerificationToken}))
+}
+
+func (s *KudosService) handleEvent(event slackevents.EventsAPIEvent, body string, w http.ResponseWriter) {
+	if event.Type == slackevents.URLVerification {
+		s.handleVerification(body, w)
 	}
-	if eventsAPIEvent.Type == slackevents.CallbackEvent {
-		innerEvent := eventsAPIEvent.InnerEvent
+	if event.Type == slackevents.CallbackEvent {
+		innerEvent := event.InnerEvent
 		fmt.Printf("Event inner type: %s\n", innerEvent.Data)
 		switch ev := innerEvent.Data.(type) {
 		case *slackevents.AppMentionEvent:
-			s.client.PostMessage(ev.Channel, slack.MsgOptionText("Yes, hello.", false))
+			s.SendMessage(ev.Channel, "Yes, hello.")
 		case *slackevents.MessageEvent:
 			err := s.handleMessageEvents(ev)
 			if err != nil {
@@ -66,9 +83,19 @@ func (s *KudosService) Handler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *KudosService) handleVerification(body string, w http.ResponseWriter) {
+	var r *slackevents.ChallengeResponse
+	err := json.Unmarshal([]byte(body), &r)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+	w.Header().Set("Content-Type", "text")
+	w.Write([]byte(r.Challenge))
+}
+
 func (s *KudosService) handleMessageEvents(event *slackevents.MessageEvent) error {
 	if event.BotID == "" {
-		s.client.PostMessage(event.Channel, slack.MsgOptionText("Hello, thanks", false))
+		s.SendMessage(event.Channel, "Hello, thanks")
 		fmt.Printf("message sender: %s\n", event.User)
 		fmt.Printf("message sender id: %s\n", event.Username)
 		fmt.Printf("bot: %s\n", event.BotID)

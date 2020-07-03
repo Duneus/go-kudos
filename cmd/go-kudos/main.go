@@ -5,6 +5,8 @@ import (
 	"github.com/Duneus/go-kudos/pkg/config"
 	"github.com/Duneus/go-kudos/pkg/inmem"
 	"github.com/Duneus/go-kudos/pkg/service"
+	http2 "github.com/Duneus/go-kudos/pkg/service/http"
+	"github.com/gorilla/mux"
 	"github.com/slack-go/slack"
 	"net/http"
 )
@@ -18,12 +20,15 @@ func main() {
 		cfg,
 		api,
 	)
+	kudosApi := http2.NewKudosApi(kudosService)
 
-	http.HandleFunc("/events-endpoint", kudosService.Handler)
+	router := mux.NewRouter()
+	kudosApi.Mount(router)
+
 
 	fmt.Println("[INFO] Server listening")
 
-	if err := http.ListenAndServe(":3000", nil); err != nil {
+	if err := http.ListenAndServe(":3000", router); err != nil {
 		fmt.Printf("Server stopped immediately: %v", err)
 	}
 }
