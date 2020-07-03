@@ -9,6 +9,7 @@ import (
 type Config struct {
 	BotOAuthToken     string
 	VerificationToken string
+	SqliteFilePath    string
 }
 
 func LoadConfig() Config {
@@ -20,5 +21,6 @@ func LoadConfig() Config {
 	return Config{
 		BotOAuthToken:     os.Getenv("SLACK_BOT_OAUTH_TOKEN"),
 		VerificationToken: os.Getenv("SLACK_VERIFICATION_TOKEN"),
+		SqliteFilePath:    os.Getenv("SQLITE_FILE_PATH"),
 	}
 }

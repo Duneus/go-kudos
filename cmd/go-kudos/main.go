@@ -3,9 +3,9 @@ package main
 import (
 	"fmt"
 	"github.com/Duneus/go-kudos/pkg/config"
-	"github.com/Duneus/go-kudos/pkg/inmem"
 	"github.com/Duneus/go-kudos/pkg/service"
 	http2 "github.com/Duneus/go-kudos/pkg/service/http"
+	"github.com/Duneus/go-kudos/pkg/sqlite"
 	"github.com/gorilla/mux"
 	"github.com/slack-go/slack"
 	"net/http"
@@ -14,9 +14,14 @@ import (
 func main() {
 	cfg := config.LoadConfig()
 	api := slack.New(cfg.BotOAuthToken)
-	kudosStorage := inmem.NewKudosStorage()
+	db, err := sqlite.NewGorm(cfg.SqliteFilePath)
+	if err != nil {
+		panic(err)
+	}
+	//kudosStorage := inmem.NewKudosStorage()
+	kudosPersistentStorage := sqlite.NewKudosStorage(db)
 	kudosService := service.NewKudosService(
-		kudosStorage,
+		kudosPersistentStorage,
 		cfg,
 		api,
 	)
