@@ -5,9 +5,7 @@ import (
 )
 
 type KudosService interface {
-	Handler(rw http.ResponseWriter, r *http.Request)
-
-	SendMessage(channelId string, message string) error
-	ForwardKudos()
-	PublishKudos()
+	Forward(rw http.ResponseWriter, r *http.Request)
+	AddKudos(rw http.ResponseWriter, r *http.Request)
+	PublishKudos(rw http.ResponseWriter, r *http.Request)
 }

@@ -8,5 +8,4 @@ type KudosStorage interface {
 
 type Kudos struct {
 	Message string
-	ID      string
 }

@@ -18,13 +18,13 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	//kudosStorage := inmem.NewKudosStorage()
 	kudosPersistentStorage := sqlite.NewKudosStorage(db)
 	kudosService := service.NewKudosService(
 		kudosPersistentStorage,
 		cfg,
 		api,
 	)
+
 	kudosApi := http2.NewKudosApi(kudosService)
 
 	router := mux.NewRouter()
