@@ -4,15 +4,22 @@ import "time"
 
 type KudosStorage interface {
 	StoreKudos(kudos Kudos) error
-	GetAllKudos() ([]Kudos, error)
+	GetAllKudosInTeam(teamId string) ([]Kudos, error)
 	GetKudosByUser(user string) ([]Kudos, error)
-	DeleteKudos(message string) error
-	ClearKudos() error
-	SetSchedule(time time.Time) error
-	ClearSchedule() error
+	DeleteKudos(kudosId string) error
+	ClearKudos(teamId string) error
+	SetSchedule(schedule Schedule) error
+	ClearSchedule(teamId string) error
 }
 
 type Kudos struct {
+	ID          string
 	Message     string
 	SubmittedBy string
+	SubmittedIn string
+}
+
+type Schedule struct {
+	TeamId string
+	Time   time.Time
 }

@@ -35,8 +35,8 @@ func (s *KudosService) Forward(w http.ResponseWriter, r *http.Request) {
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(r.Body)
 	body := buf.String()
-	eventsAPIEvent, e := s.parseMessage(body)
-	if e != nil {
+	eventsAPIEvent, err := s.parseMessage(body)
+	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -50,7 +50,13 @@ func (s *KudosService) AddKudos(rw http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	_ = s.kudosStorage.StoreKudos(gokudos.Kudos{Message: command.Text, SubmittedBy: command.UserID})
+	kudos := gokudos.Kudos{
+		Message:     command.Text,
+		SubmittedBy: command.UserID,
+		SubmittedIn: command.TeamID,
+	}
+
+	s.kudosStorage.StoreKudos(kudos)
 
 	s.client.PostEphemeral(command.ChannelID, command.UserID, slack.MsgOptionText("Thanks for sending your kudos!", false))
 
@@ -62,7 +68,7 @@ func (s *KudosService) PublishKudos(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		panic(err)
 	}
-	kudos, _ := s.kudosStorage.GetAllKudos()
+	kudos, _ := s.kudosStorage.GetAllKudosInTeam(command.TeamID)
 
 	var message string
 
@@ -83,18 +89,24 @@ func (s *KudosService) HandleInteractivity(rw http.ResponseWriter, r *http.Reque
 	}
 
 	for _, action := range payload.ActionCallback.BlockActions {
-		fmt.Printf("Callback: \n %+v\n", action.ActionID)
+		var view slack.HomeTabViewRequest
 		switch action.ActionID {
 		case "show_kudos":
-			s.handleAppHomeTabWithKudosList(payload.User.ID)
+			kudos, _ := s.kudosStorage.GetKudosByUser(payload.User.ID)
+			view, err = handleAppHomeTabWithKudosList(kudos)
+		case "show_all_kudos":
+			kudos, _ := s.kudosStorage.GetAllKudosInTeam(payload.Team.ID)
+			view, err = handleAppHomeTabWithKudosList(kudos)
 		case "remove_kudos":
 			s.kudosStorage.DeleteKudos(action.Value)
-			s.handleAppHomeTabWithKudosList(payload.User.ID)
+			kudos, _ := s.kudosStorage.GetKudosByUser(payload.User.ID)
+			view, err = handleAppHomeTabWithKudosList(kudos)
 		case "hide_kudos":
-			s.handleAppHomeTab(payload.User.ID)
+			view, err = handleAppHomeTab()
 		default:
-			s.handleAppHomeTab(payload.User.ID)
+			view, err = handleAppHomeTab()
 		}
+		_, _ = s.client.PublishView(payload.User.ID, view, "")
 	}
 
 	rw.WriteHeader(200)
@@ -118,7 +130,8 @@ func (s *KudosService) handleEvent(event slackevents.EventsAPIEvent, body string
 		innerEvent := event.InnerEvent
 		switch ev := innerEvent.Data.(type) {
 		case *slackevents.AppHomeOpenedEvent:
-			s.handleAppHomeTab(ev.User)
+			view, _ := handleAppHomeTab()
+			s.client.PublishView(ev.User, view, "")
 		case *slackevents.AppMentionEvent:
 			s.sendMessage(ev.Channel, "Yes, hello.")
 		case *slackevents.MessageEvent:

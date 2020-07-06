@@ -5,7 +5,6 @@ import (
 	"github.com/Duneus/go-kudos/pkg/gokudos"
 	"github.com/jinzhu/gorm"
 	_ "github.com/mattn/go-sqlite3"
-	"time"
 )
 
 var _ gokudos.KudosStorage = &KudosStorage{}
@@ -22,10 +21,10 @@ func (k *KudosStorage) StoreKudos(kudos gokudos.Kudos) error {
 	return k.storage.Create(mapKudosToModel(kudos)).Error
 }
 
-func (k *KudosStorage) GetAllKudos() ([]gokudos.Kudos, error) {
+func (k *KudosStorage) GetAllKudosInTeam(teamId string) ([]gokudos.Kudos, error) {
 	var kudos []kudos
 
-	err := k.storage.Find(&kudos).Error
+	err := k.storage.Find(&kudos).Where("submitted_in = ?", teamId).Error
 
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving all kudos: %w", err)
@@ -58,18 +57,18 @@ func (k *KudosStorage) GetKudosByUser(user string) ([]gokudos.Kudos, error) {
 
 }
 
-func (k *KudosStorage) DeleteKudos(message string) error {
-	return k.storage.Delete(kudos{}, "message = ?", message).Error
+func (k *KudosStorage) DeleteKudos(teamId string) error {
+	return k.storage.Delete(kudos{}, "team_id = ?", teamId).Error
 }
 
-func (k *KudosStorage) ClearKudos() error {
-	return k.storage.Delete(&kudos{}).Error
+func (k *KudosStorage) ClearKudos(teamId string) error {
+	return k.storage.Delete(&kudos{}).Where("team_id = ?", teamId).Error
 }
 
-func (k *KudosStorage) SetSchedule(time time.Time) error {
-	return nil
+func (k *KudosStorage) SetSchedule(schedule gokudos.Schedule) error {
+	return k.storage.Create(mapScheduleToModel(schedule)).Error
 }
 
-func (k *KudosStorage) ClearSchedule() error {
-	return k.storage.Delete(&schedule{}).Error
+func (k *KudosStorage) ClearSchedule(teamId string) error {
+	return k.storage.Delete(&schedule{}).Where("team_id = ?", teamId).Error
 }
