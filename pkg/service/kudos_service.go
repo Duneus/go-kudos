@@ -45,20 +45,23 @@ func (s *KudosService) Forward(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *KudosService) AddKudos(rw http.ResponseWriter, r *http.Request) {
-	_ = r.ParseForm()
-	text := r.PostFormValue("text")
-	channelId := r.PostFormValue("channel_id")
-	userId := r.PostFormValue("user_id")
-	_ = s.kudosStorage.StoreKudos(gokudos.Kudos{Message: text})
+	command, err := slack.SlashCommandParse(r)
+	if err != nil {
+		panic(err)
+	}
 
-	s.client.PostEphemeral(channelId, userId, slack.MsgOptionText("Thanks for sending your kudos!", false))
+	_ = s.kudosStorage.StoreKudos(gokudos.Kudos{Message: command.Text, SubmittedBy: command.UserID})
+
+	s.client.PostEphemeral(command.ChannelID, command.UserID, slack.MsgOptionText("Thanks for sending your kudos!", false))
 
 	rw.WriteHeader(200)
 }
 
 func (s *KudosService) PublishKudos(rw http.ResponseWriter, r *http.Request) {
-	_ = r.ParseForm()
-	channelId := r.PostFormValue("channel_id")
+	command, err := slack.SlashCommandParse(r)
+	if err != nil {
+		panic(err)
+	}
 	kudos, _ := s.kudosStorage.GetAllKudos()
 
 	var message string
@@ -67,7 +70,32 @@ func (s *KudosService) PublishKudos(rw http.ResponseWriter, r *http.Request) {
 		message = message + k.Message + "\n"
 	}
 
-	s.client.PostMessage(channelId, slack.MsgOptionText(message, false))
+	s.client.PostMessage(command.ChannelID, slack.MsgOptionText(message, false))
+
+	rw.WriteHeader(200)
+}
+
+func (s *KudosService) HandleInteractivity(rw http.ResponseWriter, r *http.Request) {
+	var payload slack.InteractionCallback
+	err := json.Unmarshal([]byte(r.FormValue("payload")), &payload)
+	if err != nil {
+		fmt.Printf("Could not parse action response JSON: %v", err)
+	}
+
+	for _, action := range payload.ActionCallback.BlockActions {
+		fmt.Printf("Callback: \n %+v\n", action.ActionID)
+		switch action.ActionID {
+		case "show_kudos":
+			s.handleAppHomeTabWithKudosList(payload.User.ID)
+		case "remove_kudos":
+			s.kudosStorage.DeleteKudos(action.Value)
+			s.handleAppHomeTabWithKudosList(payload.User.ID)
+		case "hide_kudos":
+			s.handleAppHomeTab(payload.User.ID)
+		default:
+			s.handleAppHomeTab(payload.User.ID)
+		}
+	}
 
 	rw.WriteHeader(200)
 }
@@ -88,8 +116,9 @@ func (s *KudosService) handleEvent(event slackevents.EventsAPIEvent, body string
 	}
 	if event.Type == slackevents.CallbackEvent {
 		innerEvent := event.InnerEvent
-		fmt.Printf("Event inner type: %s\n", innerEvent.Data)
 		switch ev := innerEvent.Data.(type) {
+		case *slackevents.AppHomeOpenedEvent:
+			s.handleAppHomeTab(ev.User)
 		case *slackevents.AppMentionEvent:
 			s.sendMessage(ev.Channel, "Yes, hello.")
 		case *slackevents.MessageEvent:
@@ -100,6 +129,8 @@ func (s *KudosService) handleEvent(event slackevents.EventsAPIEvent, body string
 		case *slackevents.MessageAction:
 		}
 	}
+
+	w.WriteHeader(200)
 }
 
 func (s *KudosService) handleVerification(body string, w http.ResponseWriter) {
@@ -115,9 +146,6 @@ func (s *KudosService) handleVerification(body string, w http.ResponseWriter) {
 func (s *KudosService) handleMessageEvents(event *slackevents.MessageEvent) error {
 	if event.BotID == "" {
 		s.sendMessage(event.Channel, "Hello, thanks")
-		fmt.Printf("message sender: %s\n", event.User)
-		fmt.Printf("message sender id: %s\n", event.Username)
-		fmt.Printf("bot: %s\n", event.BotID)
 	}
 
 	return nil

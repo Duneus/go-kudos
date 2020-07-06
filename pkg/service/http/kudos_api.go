@@ -17,4 +17,5 @@ func (api *KudosApi) Mount(router *mux.Router) {
 	router.HandleFunc("/events-endpoint", api.service.Forward)
 	router.HandleFunc("/addKudos", api.service.AddKudos)
 	router.HandleFunc("/postKudos", api.service.PublishKudos)
+	router.HandleFunc("/interactivity", api.service.HandleInteractivity)
 }
