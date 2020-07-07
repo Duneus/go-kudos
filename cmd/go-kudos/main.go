@@ -15,7 +15,7 @@ func main() {
 	cfg := config.LoadConfig()
 	api := slack.New(cfg.BotOAuthToken)
 	db, err := sqlite.NewGorm(cfg.SqliteFilePath)
-	sqlite.Migrate(db)
+	//sqlite.Migrate(db)
 	if err != nil {
 		panic(err)
 	}

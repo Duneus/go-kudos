@@ -6,7 +6,7 @@ import (
 )
 
 type kudos struct {
-	ID          string
+	ID          int `gorm:"primary_key"`
 	Message     string
 	SubmittedBy string
 	SubmittedIn string

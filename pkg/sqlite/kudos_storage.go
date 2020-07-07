@@ -57,8 +57,8 @@ func (k *KudosStorage) GetKudosByUser(user string) ([]gokudos.Kudos, error) {
 
 }
 
-func (k *KudosStorage) DeleteKudos(teamId string) error {
-	return k.storage.Delete(kudos{}, "team_id = ?", teamId).Error
+func (k *KudosStorage) DeleteKudos(kudosId int) error {
+	return k.storage.Delete(kudos{}, "id = ?", kudosId).Error
 }
 
 func (k *KudosStorage) ClearKudos(teamId string) error {

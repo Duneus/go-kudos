@@ -9,6 +9,7 @@ import (
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
 	"net/http"
+	"strconv"
 )
 
 var _ gokudos.KudosService = &KudosService{}
@@ -73,7 +74,7 @@ func (s *KudosService) PublishKudos(rw http.ResponseWriter, r *http.Request) {
 	var message string
 
 	for _, k := range kudos {
-		message = message + k.Message + "\n"
+		message = message + prependHeart(k.Message) + "\n"
 	}
 
 	s.client.PostMessage(command.ChannelID, slack.MsgOptionText(message, false))
@@ -90,23 +91,47 @@ func (s *KudosService) HandleInteractivity(rw http.ResponseWriter, r *http.Reque
 
 	for _, action := range payload.ActionCallback.BlockActions {
 		var view slack.HomeTabViewRequest
+		fmt.Printf("Action idx is: %s\n", action.ActionID)
 		switch action.ActionID {
 		case "show_kudos":
-			kudos, _ := s.kudosStorage.GetKudosByUser(payload.User.ID)
+			kudos, err := s.kudosStorage.GetKudosByUser(payload.User.ID)
+			if err != nil {
+				fmt.Printf("error: %w", err)
+			}
 			view, err = handleAppHomeTabWithKudosList(kudos)
+			if err != nil {
+				fmt.Printf("error: %w", err)
+			}
+			_, err = s.client.PublishView(payload.User.ID, view, "")
+			if err != nil {
+				fmt.Printf("error: %w", err)
+			}
 		case "show_all_kudos":
-			kudos, _ := s.kudosStorage.GetAllKudosInTeam(payload.Team.ID)
+			kudos, err := s.kudosStorage.GetAllKudosInTeam(payload.Team.ID)
+			if err != nil {
+				fmt.Printf("error: %w", err)
+			}
 			view, err = handleAppHomeTabWithKudosList(kudos)
+			if err != nil {
+				fmt.Printf("error: %w", err)
+			}
+			s.client.PublishView(payload.User.ID, view, "")
 		case "remove_kudos":
-			s.kudosStorage.DeleteKudos(action.Value)
+			kudosId, err := strconv.Atoi(action.Value)
+			if err != nil {
+				panic(err)
+			}
+			s.kudosStorage.DeleteKudos(kudosId)
 			kudos, _ := s.kudosStorage.GetKudosByUser(payload.User.ID)
 			view, err = handleAppHomeTabWithKudosList(kudos)
+			s.client.PublishView(payload.User.ID, view, "")
 		case "hide_kudos":
 			view, err = handleAppHomeTab()
+			s.client.PublishView(payload.User.ID, view, "")
 		default:
 			view, err = handleAppHomeTab()
+			s.client.PublishView(payload.User.ID, view, "")
 		}
-		_, _ = s.client.PublishView(payload.User.ID, view, "")
 	}
 
 	rw.WriteHeader(200)

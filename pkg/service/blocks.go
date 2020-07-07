@@ -3,6 +3,8 @@ package service
 import (
 	"github.com/Duneus/go-kudos/pkg/gokudos"
 	"github.com/slack-go/slack"
+	"math/rand"
+	"strconv"
 )
 
 func NewDivider() slack.Block {
@@ -27,10 +29,12 @@ func handleAppHomeTab() (slack.HomeTabViewRequest, error) {
 	prompt := NewSection("hello!")
 
 	showKudosText := slack.NewTextBlockObject("plain_text", "Show kudos", false, false)
+	showAllKudosText := slack.NewTextBlockObject("plain_text", "Show all kudos", false, false)
 	hideKudosText := slack.NewTextBlockObject("plain_text", "Hide kudos", false, false)
 	showKudos := slack.NewButtonBlockElement("show_kudos", "show_kudos", showKudosText)
+	showAllKudos := slack.NewButtonBlockElement("show_all_kudos", "show_all_kudos", showAllKudosText)
 	hideKudos := slack.NewButtonBlockElement("hide_kudos", "hide_kudos", hideKudosText)
-	action := slack.NewActionBlock("actions", showKudos, hideKudos)
+	action := slack.NewActionBlock("actions", showKudos, showAllKudos, hideKudos)
 
 	return slack.HomeTabViewRequest{
 		Type: "home",
@@ -54,9 +58,10 @@ func handleAppHomeTabWithKudosList(kudos []gokudos.Kudos) (slack.HomeTabViewRequ
 
 	if len(kudos) > 0 {
 		for _, k := range kudos {
-			kudosText := slack.NewTextBlockObject("plain_text", k.Message, true, false)
+			kudosId := strconv.Itoa(k.ID)
+			kudosText := slack.NewTextBlockObject("mrkdwn", k.Message, false, false)
 			removeButtonText := slack.NewTextBlockObject("plain_text", "Remove", false, false, )
-			removeButton := slack.NewButtonBlockElement("remove_kudos", k.ID, removeButtonText)
+			removeButton := slack.NewButtonBlockElement("remove_kudos", kudosId, removeButtonText)
 			acc := slack.Accessory{
 				ButtonElement: removeButton,
 			}
@@ -71,4 +76,16 @@ func handleAppHomeTabWithKudosList(kudos []gokudos.Kudos) (slack.HomeTabViewRequ
 			BlockSet: blockSet,
 		},
 	}, nil
+}
+
+var hearts = []string{":purple_heart:", ":heart:", ":yellow_heart:", ":green_heart:", ":blue_heart:"}
+
+func getHeart() string {
+	el := rand.Intn(len(hearts))
+
+	return hearts[el]
+}
+
+func prependHeart(message string) string {
+	return getHeart() + " " + message
 }
