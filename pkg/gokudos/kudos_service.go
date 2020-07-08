@@ -1,6 +1,7 @@
 package gokudos
 
 import (
+	"github.com/slack-go/slack"
 	"net/http"
 )
 
@@ -10,3 +11,5 @@ type KudosService interface {
 	PublishKudos(rw http.ResponseWriter, r *http.Request)
 	HandleInteractivity(rw http.ResponseWriter, r *http.Request)
 }
+
+type ActionHandler func(action *slack.BlockAction, payload slack.InteractionCallback) interface{}

@@ -15,6 +15,17 @@ import (
 
 var _ gokudos.KudosService = &KudosService{}
 
+const (
+	ShowKudosView         = "show_kudos_view"
+	ShowAllKudosView      = "show_all_kudos_view"
+	ShowSchedulingView    = "show_scheduling_view"
+	ShowChannelSelectView = "show_channel_select_view"
+
+	SetSchedule = "set_schedule"
+	SetChannel  = "set_channel"
+	RemoveKudos = "remove_kudos"
+)
+
 type KudosService struct {
 	kudosStorage    gokudos.KudosStorage
 	scheduleStorage gokudos.ScheduleStorage
@@ -41,7 +52,7 @@ func NewKudosService(
 
 func (s *KudosService) Forward(w http.ResponseWriter, r *http.Request) {
 	buf := new(bytes.Buffer)
-	buf.ReadFrom(r.Body)
+	_, _ = buf.ReadFrom(r.Body)
 	body := buf.String()
 	eventsAPIEvent, err := s.parseMessage(body)
 	if err != nil {
@@ -64,9 +75,15 @@ func (s *KudosService) AddKudos(rw http.ResponseWriter, r *http.Request) {
 		SubmittedIn: command.TeamID,
 	}
 
-	s.kudosStorage.StoreKudos(kudos)
+	err = s.kudosStorage.StoreKudos(kudos)
+	if err != nil {
+		fmt.Printf("Print error %+v", err)
+	}
 
-	s.client.PostEphemeral(command.ChannelID, command.UserID, slack.MsgOptionText("Thanks for sending your kudos!", false))
+	_, err = s.client.PostEphemeral(command.ChannelID, command.UserID, slack.MsgOptionText("Thanks for sending your kudos!", false))
+	if err != nil {
+		fmt.Printf("Print error %+v", err)
+	}
 
 	rw.WriteHeader(200)
 }
@@ -84,7 +101,10 @@ func (s *KudosService) PublishKudos(rw http.ResponseWriter, r *http.Request) {
 		message = message + prependHeart(k.Message) + "\n"
 	}
 
-	s.client.PostMessage(command.ChannelID, slack.MsgOptionText(message, false))
+	_, _, err = s.client.PostMessage(command.ChannelID, slack.MsgOptionText(message, false))
+	if err != nil {
+		fmt.Printf("Print error %+v", err)
+	}
 
 	rw.WriteHeader(200)
 }
@@ -97,86 +117,21 @@ func (s *KudosService) HandleInteractivity(rw http.ResponseWriter, r *http.Reque
 	}
 
 	for _, action := range payload.ActionCallback.BlockActions {
-		var view slack.HomeTabViewRequest
-		fmt.Printf("Action idx is: %s\n", action.ActionID)
 		switch action.ActionID {
-		case "show_kudos":
-			kudos, err := s.kudosStorage.GetKudosByUser(payload.User.ID)
-			if err != nil {
-				fmt.Printf("error: %w", err)
-			}
-			view, err = handleAppHomeTabWithKudosList(kudos)
-			if err != nil {
-				fmt.Printf("error: %w", err)
-			}
-			_, err = s.client.PublishView(payload.User.ID, view, "")
-			if err != nil {
-				fmt.Printf("error: %w", err)
-			}
-		case "show_all_kudos":
-			kudos, err := s.kudosStorage.GetAllKudosInTeam(payload.Team.ID)
-			if err != nil {
-				fmt.Printf("error: %w", err)
-			}
-			view, err = handleAppHomeTabWithKudosList(kudos)
-			if err != nil {
-				fmt.Printf("error: %w", err)
-			}
-			s.client.PublishView(payload.User.ID, view, "")
-		case "remove_kudos":
-			kudosId, err := strconv.Atoi(action.Value)
-			if err != nil {
-				panic(err)
-			}
-			s.kudosStorage.DeleteKudos(kudosId)
-			kudos, _ := s.kudosStorage.GetKudosByUser(payload.User.ID)
-			view, err = handleAppHomeTabWithKudosList(kudos)
-			s.client.PublishView(payload.User.ID, view, "")
-		case "schedule":
-			view, err = handleAppHomeSchedulingTab()
-			s.client.PublishView(payload.User.ID, view, "")
-		case "schedule_new":
-			err = s.scheduleStorage.SetSchedule(gokudos.Schedule{
-				TeamId:      payload.Team.ID,
-				ChannelId:   payload.Channel.ID,
-				ScheduleId:  "",
-				ScheduledAt: time.Now().Add(time.Minute).Unix(),
-			})
-			if err != nil {
-				fmt.Printf("Error while setting a scheduled message: %v\n", err)
-			}
-		case "channel_select":
-			channel := ""
-			settings, err := s.settingsStorage.GetScheduleSettingsForTeam(payload.Team.ID)
-			if err != nil || settings == nil {
-				fmt.Printf("Print error %+v", err)
-			}
-			fmt.Printf("SelectedChannel: %+v\n", settings)
-			if settings != nil {
-				channel = settings.ChannelId
-			}
-			view, err = handleAppHomeTabChannelPicker(channel)
-			_, err = s.client.PublishView(payload.User.ID, view, "")
-			if err != nil {
-				fmt.Printf("Print error %+v", err)
-			}
-		case "select_channel":
-			settings := gokudos.Settings{
-				TeamId:    payload.Team.ID,
-				ChannelId: action.SelectedChannel,
-			}
-			s.settingsStorage.SetScheduleSettings(settings)
-			view, err = handleAppHomeTabChannelPicker(settings.ChannelId)
-			_, err = s.client.PublishView(payload.User.ID, view, "")
-			if err != nil {
-				fmt.Printf("Print error %+v", err)
-			}
-		case "hide_kudos":
-			view, err = handleAppHomeTab()
-			s.client.PublishView(payload.User.ID, view, "")
-		default:
-			view, err = handleAppHomeTab()
-			s.client.PublishView(payload.User.ID, view, "")
+		case ShowKudosView:
+			s.showMyKudosView(payload)
+		case ShowAllKudosView:
+			s.showAllKudosView(payload)
+		case RemoveKudos:
+			s.removeKudos(payload, action)
+		case ShowSchedulingView:
+			s.showSchedulingView(payload)
+		case SetSchedule:
+			s.setSchedule(payload)
+		case ShowChannelSelectView:
+			s.showChannelSelectView(payload)
+		case SetChannel:
+			s.setChannel(payload, action)
 		}
 	}
 
@@ -202,9 +157,15 @@ func (s *KudosService) handleEvent(event slackevents.EventsAPIEvent, body string
 		switch ev := innerEvent.Data.(type) {
 		case *slackevents.AppHomeOpenedEvent:
 			view, _ := handleAppHomeTab()
-			s.client.PublishView(ev.User, view, "")
+			_, err := s.client.PublishView(ev.User, view, "")
+			if err != nil {
+				fmt.Printf("Print error %+v", err)
+			}
 		case *slackevents.AppMentionEvent:
-			s.sendMessage(ev.Channel, "Yes, hello.")
+			err := s.sendMessage(ev.Channel, "Yes, hello.")
+			if err != nil {
+				fmt.Printf("Print error %+v", err)
+			}
 		case *slackevents.MessageEvent:
 			err := s.handleMessageEvents(ev)
 			if err != nil {
@@ -224,13 +185,119 @@ func (s *KudosService) handleVerification(body string, w http.ResponseWriter) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}
 	w.Header().Set("Content-Type", "text")
-	w.Write([]byte(r.Challenge))
+	_, _ = w.Write([]byte(r.Challenge))
 }
 
 func (s *KudosService) handleMessageEvents(event *slackevents.MessageEvent) error {
 	if event.BotID == "" {
-		s.sendMessage(event.Channel, "Hello, thanks")
+		err := s.sendMessage(event.Channel, "Hello, thanks")
+		if err != nil {
+			fmt.Printf("Print error %+v", err)
+		}
 	}
 
 	return nil
+}
+
+func (s *KudosService) showMyKudosView(payload slack.InteractionCallback) {
+	kudos, err := s.kudosStorage.GetKudosByUser(payload.User.ID)
+	if err != nil {
+		fmt.Printf("error: %v", err)
+	}
+	view, err := handleAppHomeTabWithKudosList(kudos)
+	if err != nil {
+		fmt.Printf("error: %v", err)
+	}
+	_, err = s.client.PublishView(payload.User.ID, view, "")
+	if err != nil {
+		fmt.Printf("error: %v", err)
+	}
+}
+
+func (s *KudosService) showAllKudosView(payload slack.InteractionCallback) {
+	kudos, err := s.kudosStorage.GetAllKudosInTeam(payload.Team.ID)
+	if err != nil {
+		fmt.Printf("error: %v", err)
+	}
+	view, err := handleAppHomeTabWithKudosList(kudos)
+	if err != nil {
+		fmt.Printf("error: %v", err)
+	}
+	_, err = s.client.PublishView(payload.User.ID, view, "")
+	if err != nil {
+		fmt.Printf("error: %v", err)
+	}
+}
+
+func (s *KudosService) showSchedulingView(payload slack.InteractionCallback) {
+	view, err := handleAppHomeSchedulingTab()
+	if err != nil {
+		fmt.Printf("error: %v", err)
+	}
+	_, err = s.client.PublishView(payload.User.ID, view, "")
+	if err != nil {
+		fmt.Printf("error: %v", err)
+	}
+}
+
+func (s *KudosService) showChannelSelectView(payload slack.InteractionCallback) {
+	channel := ""
+	settings, err := s.settingsStorage.GetScheduleSettingsForTeam(payload.Team.ID)
+	if err != nil || settings == nil {
+		fmt.Printf("Print error %+v", err)
+	}
+	fmt.Printf("SelectedChannel: %+v\n", settings)
+	if settings != nil {
+		channel = settings.ChannelId
+	}
+	view, err := handleAppHomeTabChannelPicker(channel)
+	_, err = s.client.PublishView(payload.User.ID, view, "")
+	if err != nil {
+		fmt.Printf("Print error %+v", err)
+	}
+}
+
+func (s *KudosService) removeKudos(payload slack.InteractionCallback, action *slack.BlockAction) {
+	kudosId, err := strconv.Atoi(action.Value)
+	if err != nil {
+		fmt.Printf("error: %v", err)
+	}
+	err = s.kudosStorage.DeleteKudos(kudosId)
+	if err != nil {
+		fmt.Printf("error: %v", err)
+	}
+	kudos, _ := s.kudosStorage.GetKudosByUser(payload.User.ID)
+	view, err := handleAppHomeTabWithKudosList(kudos)
+	_, err = s.client.PublishView(payload.User.ID, view, "")
+	if err != nil {
+		fmt.Printf("error: %v", err)
+	}
+}
+
+func (s *KudosService) setSchedule(payload slack.InteractionCallback) {
+	err := s.scheduleStorage.SetSchedule(gokudos.Schedule{
+		TeamId:      payload.Team.ID,
+		ChannelId:   payload.Channel.ID,
+		ScheduleId:  "",
+		ScheduledAt: time.Now().Add(time.Minute).Unix(),
+	})
+	if err != nil {
+		fmt.Printf("Error while setting a scheduled message: %v\n", err)
+	}
+}
+
+func (s *KudosService) setChannel(payload slack.InteractionCallback, action *slack.BlockAction) {
+	settings := gokudos.Settings{
+		TeamId:    payload.Team.ID,
+		ChannelId: action.SelectedChannel,
+	}
+	err := s.settingsStorage.SetScheduleSettings(settings)
+	if err != nil {
+		fmt.Printf("Print error %+v", err)
+	}
+	view, err := handleAppHomeTabChannelPicker(settings.ChannelId)
+	_, err = s.client.PublishView(payload.User.ID, view, "")
+	if err != nil {
+		fmt.Printf("Print error %+v", err)
+	}
 }
