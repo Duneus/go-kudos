@@ -64,11 +64,3 @@ func (k *KudosStorage) DeleteKudos(kudosId int) error {
 func (k *KudosStorage) ClearKudos(teamId string) error {
 	return k.storage.Delete(&kudos{}).Where("team_id = ?", teamId).Error
 }
-
-func (k *KudosStorage) SetSchedule(schedule gokudos.Schedule) error {
-	return k.storage.Create(mapScheduleToModel(schedule)).Error
-}
-
-func (k *KudosStorage) ClearSchedule(teamId string) error {
-	return k.storage.Delete(&schedule{}).Where("team_id = ?", teamId).Error
-}

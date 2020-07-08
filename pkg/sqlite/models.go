@@ -2,7 +2,6 @@ package sqlite
 
 import (
 	"github.com/Duneus/go-kudos/pkg/gokudos"
-	"time"
 )
 
 type kudos struct {
@@ -12,9 +11,10 @@ type kudos struct {
 	SubmittedIn string
 }
 
-type schedule struct {
-	TeamId string    `gorm:"unique;not null"`
-	Time   time.Time `gorm:"not null"`
+type settings struct {
+	TeamId      string `gorm:"unique;not null"`
+	ChannelId   string
+	ScheduledId string
 }
 
 func mapKudosToModel(kudos2 gokudos.Kudos) *kudos {
@@ -26,18 +26,27 @@ func mapKudosToModel(kudos2 gokudos.Kudos) *kudos {
 	}
 }
 
-func mapScheduleToModel(schedule2 gokudos.Schedule) *schedule {
-	return &schedule{
-		TeamId: schedule2.TeamId,
-		Time:   schedule2.Time,
-	}
-}
-
 func (k *kudos) toModel() gokudos.Kudos {
 	return gokudos.Kudos{
 		ID:          k.ID,
 		Message:     k.Message,
 		SubmittedBy: k.SubmittedBy,
 		SubmittedIn: k.SubmittedIn,
+	}
+}
+
+func mapSettingsToModel(settings2 gokudos.Settings) *settings {
+	return &settings{
+		TeamId:      settings2.TeamId,
+		ChannelId:   settings2.ChannelId,
+		ScheduledId: "",
+	}
+}
+
+func (s *settings) toModel() gokudos.Settings {
+	return gokudos.Settings{
+		TeamId: s.TeamId,
+		ChannelId: s.ChannelId,
+
 	}
 }

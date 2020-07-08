@@ -10,25 +10,32 @@ import (
 	"github.com/slack-go/slack/slackevents"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 var _ gokudos.KudosService = &KudosService{}
 
 type KudosService struct {
-	kudosStorage gokudos.KudosStorage
-	cfg          config.Config
-	client       *slack.Client
+	kudosStorage    gokudos.KudosStorage
+	scheduleStorage gokudos.ScheduleStorage
+	settingsStorage gokudos.SettingsStorage
+	cfg             config.Config
+	client          *slack.Client
 }
 
 func NewKudosService(
-	storage gokudos.KudosStorage,
+	kudosStorage gokudos.KudosStorage,
+	scheduleStorage gokudos.ScheduleStorage,
+	settingsStorage gokudos.SettingsStorage,
 	cfg config.Config,
 	client *slack.Client,
 ) *KudosService {
 	return &KudosService{
-		kudosStorage: storage,
-		cfg:          cfg,
-		client:       client,
+		kudosStorage:    kudosStorage,
+		scheduleStorage: scheduleStorage,
+		settingsStorage: settingsStorage,
+		cfg:             cfg,
+		client:          client,
 	}
 }
 
@@ -125,6 +132,45 @@ func (s *KudosService) HandleInteractivity(rw http.ResponseWriter, r *http.Reque
 			kudos, _ := s.kudosStorage.GetKudosByUser(payload.User.ID)
 			view, err = handleAppHomeTabWithKudosList(kudos)
 			s.client.PublishView(payload.User.ID, view, "")
+		case "schedule":
+			view, err = handleAppHomeSchedulingTab()
+			s.client.PublishView(payload.User.ID, view, "")
+		case "schedule_new":
+			err = s.scheduleStorage.SetSchedule(gokudos.Schedule{
+				TeamId:      payload.Team.ID,
+				ChannelId:   payload.Channel.ID,
+				ScheduleId:  "",
+				ScheduledAt: time.Now().Add(time.Minute).Unix(),
+			})
+			if err != nil {
+				fmt.Printf("Error while setting a scheduled message: %v\n", err)
+			}
+		case "channel_select":
+			channel := ""
+			settings, err := s.settingsStorage.GetScheduleSettingsForTeam(payload.Team.ID)
+			if err != nil || settings == nil {
+				fmt.Printf("Print error %+v", err)
+			}
+			fmt.Printf("SelectedChannel: %+v\n", settings)
+			if settings != nil {
+				channel = settings.ChannelId
+			}
+			view, err = handleAppHomeTabChannelPicker(channel)
+			_, err = s.client.PublishView(payload.User.ID, view, "")
+			if err != nil {
+				fmt.Printf("Print error %+v", err)
+			}
+		case "select_channel":
+			settings := gokudos.Settings{
+				TeamId:    payload.Team.ID,
+				ChannelId: action.SelectedChannel,
+			}
+			s.settingsStorage.SetScheduleSettings(settings)
+			view, err = handleAppHomeTabChannelPicker(settings.ChannelId)
+			_, err = s.client.PublishView(payload.User.ID, view, "")
+			if err != nil {
+				fmt.Printf("Print error %+v", err)
+			}
 		case "hide_kudos":
 			view, err = handleAppHomeTab()
 			s.client.PublishView(payload.User.ID, view, "")

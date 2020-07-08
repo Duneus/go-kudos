@@ -9,11 +9,11 @@ type storage struct {
 func Migrate(orm *gorm.DB) error {
 	if err := orm.Set("gorm:table_options", "CASCADE").DropTableIfExists(
 		&kudos{},
-		&schedule{},
+		&settings{},
 	).Error
 		err != nil {
 			panic(err)
 	}
 
-	return orm.AutoMigrate(&kudos{}, &schedule{}).Error
+	return orm.AutoMigrate(&kudos{}, &settings{}).Error
 }

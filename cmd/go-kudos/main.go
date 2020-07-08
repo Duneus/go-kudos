@@ -5,6 +5,7 @@ import (
 	"github.com/Duneus/go-kudos/pkg/config"
 	"github.com/Duneus/go-kudos/pkg/service"
 	http2 "github.com/Duneus/go-kudos/pkg/service/http"
+	slack2 "github.com/Duneus/go-kudos/pkg/slack"
 	"github.com/Duneus/go-kudos/pkg/sqlite"
 	"github.com/gorilla/mux"
 	"github.com/slack-go/slack"
@@ -20,8 +21,12 @@ func main() {
 		panic(err)
 	}
 	kudosPersistentStorage := sqlite.NewKudosStorage(db)
+	scheduleStorage := slack2.NewScheduleStorage(api)
+	settingsStorage := sqlite.NewSettingsStorage(db)
 	kudosService := service.NewKudosService(
 		kudosPersistentStorage,
+		scheduleStorage,
+		settingsStorage,
 		cfg,
 		api,
 	)
@@ -30,7 +35,6 @@ func main() {
 
 	router := mux.NewRouter()
 	kudosApi.Mount(router)
-
 
 	fmt.Println("[INFO] Server listening")
 

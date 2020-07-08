@@ -23,38 +23,44 @@ func NewSection(text string) slack.Block {
 	}
 }
 
+func homeTabHeader() *slack.ActionBlock {
+	showKudosText := slack.NewTextBlockObject("plain_text", "Show kudos", false, false)
+	showAllKudosText := slack.NewTextBlockObject("plain_text", "Show all kudos", false, false)
+	scheduleText := slack.NewTextBlockObject("plain_text", "Schedule next kudos", false, false)
+	channelSelectText := slack.NewTextBlockObject("plain_text", "Select channel", false, false)
+
+	showKudos := slack.NewButtonBlockElement("show_kudos", "show_kudos", showKudosText)
+	showAllKudos := slack.NewButtonBlockElement("show_all_kudos", "show_all_kudos", showAllKudosText)
+	schedule := slack.NewButtonBlockElement("schedule", "schedule", scheduleText)
+	channelSelect := slack.NewButtonBlockElement("channel_select", "channel_select", channelSelectText)
+
+	return slack.NewActionBlock("actions", showKudos, showAllKudos, schedule, channelSelect)
+}
+
 func handleAppHomeTab() (slack.HomeTabViewRequest, error) {
-	hello := NewSection("hello!")
+	hello := NewSection("Welcome to KudosBot")
 	divider := NewDivider()
 	prompt := NewSection("hello!")
 
-	showKudosText := slack.NewTextBlockObject("plain_text", "Show kudos", false, false)
-	showAllKudosText := slack.NewTextBlockObject("plain_text", "Show all kudos", false, false)
-	hideKudosText := slack.NewTextBlockObject("plain_text", "Hide kudos", false, false)
-	showKudos := slack.NewButtonBlockElement("show_kudos", "show_kudos", showKudosText)
-	showAllKudos := slack.NewButtonBlockElement("show_all_kudos", "show_all_kudos", showAllKudosText)
-	hideKudos := slack.NewButtonBlockElement("hide_kudos", "hide_kudos", hideKudosText)
-	action := slack.NewActionBlock("actions", showKudos, showAllKudos, hideKudos)
+	header := homeTabHeader()
 
 	return slack.HomeTabViewRequest{
 		Type: "home",
 		Blocks: slack.Blocks{
-			BlockSet: []slack.Block{hello, divider, prompt, action},
+			BlockSet: []slack.Block{hello, divider, header, prompt},
 		},
 	}, nil
 }
 
 func handleAppHomeTabWithKudosList(kudos []gokudos.Kudos) (slack.HomeTabViewRequest, error) {
 	var blockSet []slack.Block
-	hello := NewSection("hello!")
+	hello := NewSection("Welcome to KudosBot")
 	divider := NewDivider()
 	prompt := NewSection("hello!")
 
-	hideKudosText := slack.NewTextBlockObject("plain_text", "Hide kudos", false, false)
-	hideKudos := slack.NewButtonBlockElement("hide_kudos", "hide_kudos", hideKudosText)
-	action := slack.NewActionBlock("actions", hideKudos)
+	header := homeTabHeader()
 
-	blockSet = append(blockSet, hello, divider, prompt, action, divider)
+	blockSet = append(blockSet, hello, divider, header, prompt)
 
 	if len(kudos) > 0 {
 		for _, k := range kudos {
@@ -69,6 +75,63 @@ func handleAppHomeTabWithKudosList(kudos []gokudos.Kudos) (slack.HomeTabViewRequ
 			blockSet = append(blockSet, kudosSection)
 		}
 	}
+
+	return slack.HomeTabViewRequest{
+		Type: "home",
+		Blocks: slack.Blocks{
+			BlockSet: blockSet,
+		},
+	}, nil
+}
+
+func handleAppHomeSchedulingTab() (slack.HomeTabViewRequest, error) {
+	var blockSet []slack.Block
+	hello := NewSection("Welcome to KudosBot")
+	divider := NewDivider()
+	prompt := NewSection("Select when do you want to schedule your next posting of kudos!")
+
+	header := homeTabHeader()
+
+	datepicker := slack.NewDatePickerBlockElement("schedule_new")
+	datepickerText := slack.NewTextBlockObject("plain_text", "Select date", false, false)
+
+	acc := slack.Accessory{
+		DatePickerElement: datepicker,
+	}
+
+	datePickerSection := slack.NewSectionBlock(datepickerText, nil, &acc)
+
+	blockSet = append(blockSet, hello, divider, header, prompt, datePickerSection)
+
+	return slack.HomeTabViewRequest{
+		Type: "home",
+		Blocks: slack.Blocks{
+			BlockSet: blockSet,
+		},
+	}, nil
+}
+
+func handleAppHomeTabChannelPicker(selectedChannel string) (slack.HomeTabViewRequest, error) {
+	var blockSet []slack.Block
+	hello := NewSection("Welcome to KudosBot")
+	divider := NewDivider()
+	prompt := NewSection("Please select which channel you want to use to publish kudos!")
+
+	header := homeTabHeader()
+
+	text := slack.NewTextBlockObject("plain_text", "Select channel", false, false)
+
+	dropdown := slack.NewOptionsSelectBlockElement("channels_select", text, "select_channel")
+
+	if selectedChannel != "" {
+		dropdown.InitialChannel = selectedChannel
+	}
+
+	acc := slack.NewAccessory(dropdown)
+
+	dropdownSection := slack.NewSectionBlock(text, nil, acc)
+
+	blockSet = append(blockSet, hello, divider, header, prompt, dropdownSection)
 
 	return slack.HomeTabViewRequest{
 		Type: "home",
