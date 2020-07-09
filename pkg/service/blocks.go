@@ -29,10 +29,10 @@ func homeTabHeader() *slack.ActionBlock {
 	scheduleText := slack.NewTextBlockObject("plain_text", "Schedule next kudos", false, false)
 	channelSelectText := slack.NewTextBlockObject("plain_text", "Select channel", false, false)
 
-	showKudos := slack.NewButtonBlockElement(ShowKudosView, "show_kudos", showKudosText)
-	showAllKudos := slack.NewButtonBlockElement(ShowAllKudosView, "show_all_kudos", showAllKudosText)
-	schedule := slack.NewButtonBlockElement(ShowSchedulingView, "schedule", scheduleText)
-	channelSelect := slack.NewButtonBlockElement(ShowChannelSelectView, "channel_select", channelSelectText)
+	showKudos := slack.NewButtonBlockElement(string(ShowKudosView), "show_kudos", showKudosText)
+	showAllKudos := slack.NewButtonBlockElement(string(ShowAllKudosView), "show_all_kudos", showAllKudosText)
+	schedule := slack.NewButtonBlockElement(string(ShowSchedulingView), "schedule", scheduleText)
+	channelSelect := slack.NewButtonBlockElement(string(ShowChannelSelectView), "channel_select", channelSelectText)
 
 	return slack.NewActionBlock("actions", showKudos, showAllKudos, schedule, channelSelect)
 }
@@ -67,7 +67,7 @@ func handleAppHomeTabWithKudosList(kudos []gokudos.Kudos) (slack.HomeTabViewRequ
 			kudosId := strconv.Itoa(k.ID)
 			kudosText := slack.NewTextBlockObject("mrkdwn", k.Message, false, false)
 			removeButtonText := slack.NewTextBlockObject("plain_text", "Remove", false, false, )
-			removeButton := slack.NewButtonBlockElement(RemoveKudos, kudosId, removeButtonText)
+			removeButton := slack.NewButtonBlockElement(string(RemoveKudos), kudosId, removeButtonText)
 			acc := slack.Accessory{
 				ButtonElement: removeButton,
 			}
@@ -92,7 +92,7 @@ func handleAppHomeSchedulingTab() (slack.HomeTabViewRequest, error) {
 
 	header := homeTabHeader()
 
-	datepicker := slack.NewDatePickerBlockElement(SetSchedule)
+	datepicker := slack.NewDatePickerBlockElement(string(SetSchedule))
 	datepickerText := slack.NewTextBlockObject("plain_text", "Select date", false, false)
 
 	acc := slack.Accessory{
@@ -121,7 +121,7 @@ func handleAppHomeTabChannelPicker(selectedChannel string) (slack.HomeTabViewReq
 
 	text := slack.NewTextBlockObject("plain_text", "Select channel", false, false)
 
-	dropdown := slack.NewOptionsSelectBlockElement("channels_select", text, SetChannel)
+	dropdown := slack.NewOptionsSelectBlockElement("channels_select", text, string(SetChannel))
 
 	if selectedChannel != "" {
 		dropdown.InitialChannel = selectedChannel

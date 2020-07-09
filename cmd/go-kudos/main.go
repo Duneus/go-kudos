@@ -23,12 +23,20 @@ func main() {
 	kudosPersistentStorage := sqlite.NewKudosStorage(db)
 	scheduleStorage := slack2.NewScheduleStorage(api)
 	settingsStorage := sqlite.NewSettingsStorage(db)
+
 	kudosService := service.NewKudosService(
 		kudosPersistentStorage,
 		scheduleStorage,
 		settingsStorage,
 		cfg,
 		api,
+		service.WithActionHandler(service.ShowAllKudosView, service.NewShowAllKudosViewHandler(kudosPersistentStorage, api)),
+		service.WithActionHandler(service.ShowKudosView, service.NewShowMyKudosViewHandler(kudosPersistentStorage, api)),
+		service.WithActionHandler(service.ShowChannelSelectView, service.NewShowChannelSelectViewHandler(settingsStorage, api)),
+		service.WithActionHandler(service.ShowSchedulingView, service.NewShowSchedulingViewHandler(api)),
+		service.WithActionHandler(service.RemoveKudos, service.NewRemoveKudosHandler(kudosPersistentStorage, api)),
+		service.WithActionHandler(service.SetSchedule, service.NewSetScheduleHandler(scheduleStorage)),
+		service.WithActionHandler(service.SetChannel, service.NewSetChannelHandler(settingsStorage, api)),
 	)
 
 	kudosApi := http2.NewKudosApi(kudosService)
